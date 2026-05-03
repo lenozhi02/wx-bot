@@ -33,6 +33,15 @@ python main.py --no-webhook
     "text": "测试消息"
   }'
 
+  例：
+
+  curl -X POST http://localhost:18789/webhook/send   -H "Content-Type: application/json"   -d '{
+    "data": {"name": "CPU", "value": "85%"},
+    "template": "🔥 {name} 告警: {value}"
+  }'
+
+<img width="1264" height="2736" alt="_cgi-bin_mmwebwx-bin_webwxgetmsgimg__ MsgID=5057204888755059850 skey=@crypt_2b89c929_c50451fc47b9fb6c3d0f7a7d0e33dd42 mmweb_appid=wx_webfilehelper" src="https://github.com/user-attachments/assets/8a4b5dc6-9067-490c-9ccd-b17756d7fce5" />
+
   
 
 3. 架构设计
