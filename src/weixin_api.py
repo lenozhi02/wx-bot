@@ -29,7 +29,7 @@ class WeixinMessage:
 
 class WeixinAPI:
     """
-    微信 iLink Bot API（完全参考 co-pine/wx-robot-ilink 的 api.ts）
+    微信 iLink Bot API
     """
     
     DEFAULT_API_TIMEOUT_MS = 15000
@@ -57,7 +57,7 @@ class WeixinAPI:
         return headers
     
     def _api_post(self, endpoint: str, body: Dict[str, Any], timeout_ms: int = None) -> Dict[str, Any]:
-        """通用 POST 请求（参考 apiPost）"""
+        """通用 POST 请求"""
         url = f"{self.base_url}/{endpoint.lstrip('/')}"
         timeout = (timeout_ms or self.DEFAULT_API_TIMEOUT_MS) / 1000
         
@@ -116,7 +116,7 @@ class WeixinAPI:
     
     def send_text_message(self, to: str, text: str, context_token: Optional[str] = None) -> Dict[str, Any]:
         """
-        发送文本消息（参考 sendTextMessage）
+        发送文本消息
         
         Returns:
             API 响应数据
@@ -153,7 +153,7 @@ class WeixinAPI:
     @staticmethod
     def extract_text_from_message(msg: Dict[str, Any]) -> str:
         """
-        从消息中提取文本（参考 extractTextFromMessage）
+        从消息中提取文本
         """
         items = msg.get("item_list", [])
         if not items:
