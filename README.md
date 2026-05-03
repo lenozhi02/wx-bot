@@ -34,70 +34,18 @@ python main.py --no-webhook
 3. 架构设计
 
 
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   main.py   │────▶│  AuthManager│────▶│  WeixinAPI  │────▶│  WeixinBot  │
-│  (入口)      │     │  (认证管理)  │     │  (API封装)  │     │  (业务逻辑)  │
-└─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
-       │                   │                   │                   │
-       │                   ▼                   ▼                   ▼
-       │            ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-       │            │ 微信扫码登录 │     │ iLink API   │     │ 本地命令执行 │
-       │            │ 凭证持久化   │     │ 收发消息    │     │ 消息处理    │
-       │            └─────────────┘     └─────────────┘     └─────────────┘
-       ▼
-┌─────────────┐
-│ data/       │
-│ credentials │  ← 登录凭证持久化存储
-└─────────────┘
+<img width="1460" height="674" alt="image" src="https://github.com/user-attachments/assets/77313473-95af-4938-a3d3-a3392154c76a" />
+
 
 
 3 数据流图
 
-用户微信 ──文本消息──▶ 微信服务器 ──iLink API──▶ WeixinAPI.get_updates()
-                                                          │
-                                                          ▼
-                                              WeixinBot._handle_message()
-                                                          │
-                                    ┌─────────────────────┼─────────────────────┐
-                                    ▼                     ▼                     ▼
-                              [ShellTask]           [SearchTask](没实现）    [AIGPTask](没实现)
-                                    │                     │                     │
-                                    ▼                     ▼                     ▼
-                              subprocess.run()       搜索引擎/爬虫          LLM API
-                                    │                     │                     │
-                                    └─────────────────────┴─────────────────────┘
-                                                          │
-                                                          ▼
-                                              WeixinAPI.send_text_message()
-                                                          │
-                                    ◀─────────────────────┘
+<img width="1664" height="744" alt="image" src="https://github.com/user-attachments/assets/9763378b-d130-4b17-8e06-674c87c455cf" />
 
   4 web hook
   增加到web调用接口，推到内部后，异步给消息循环发到微信。
 
-  ┌─────────────────┐      POST /webhook/send       ┌─────────────────┐
-│   外部系统       │ ─────────────────────────────▶│  WebhookServer  │
-│ (监控/CI/CD等)   │                             │   (aiohttp)     │
-└─────────────────┘                             └────────┬────────┘
-                                                         │
-                                              asyncio.Queue
-                                                         │
-                              ┌──────────────────────────┘
-                              ▼
-                    ┌─────────────────┐
-                    │  _webhook_consumer│  ◀── Bot 内部消费者
-                    │   (异步循环)      │
-                    └────────┬────────┘
-                             │
-                             ▼
-                    ┌─────────────────┐
-                    │  WeixinAPI      │
-                    │ send_text_message│
-                    └────────┬────────┘
-                             │
-                             ▼
-                    ┌─────────────────┐
-                    │   微信用户       │
-                    └─────────────────┘
+<img width="1308" height="998" alt="image" src="https://github.com/user-attachments/assets/2f75c40b-8bd6-4d35-8b3b-4a4b8a9b45d4" />
+
 
       
