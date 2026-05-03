@@ -63,16 +63,26 @@ class WebhookServer:
         # 记录最近交互过的用户ID列表（按时间倒序）
         self._recent_users: List[str] = []
         self._max_recent = 10
+        # 缓存用户上下文信息（context_token, session_id）
+        self._user_contexts: Dict[str, Dict[str, Any]] = {}
     
     def set_default_user(self, user_id: str):
         """设置默认推送用户"""
         self.default_user = user_id
         logger.info(f"[webhook] 默认用户已设置: {user_id}")
     
-    def record_user(self, user_id: str):
-        """记录最近交互的用户"""
+    def record_user(self, user_id: str, context_token: Optional[str] = None, session_id: Optional[str] = None):
+        """记录最近交互的用户，同时缓存 context_token 用于后续推送"""
         if not user_id:
             return
+        
+        # 存储用户上下文信息
+        self._user_contexts[user_id] = {
+            "context_token": context_token,
+            "session_id": session_id,
+            "updated_at": datetime.now().isoformat(),
+        }
+        
         # 去重并置顶
         if user_id in self._recent_users:
             self._recent_users.remove(user_id)
@@ -82,7 +92,7 @@ class WebhookServer:
         # 首次交互自动设为默认用户
         if not self.default_user:
             self.default_user = user_id
-            logger.info(f"[webhook] 自动设置默认用户: {user_id}")
+            logger.info(f"[webhook] 自动设置默认用户: {user_id} (context_token={context_token})")
     
     @property
     def target_user(self) -> Optional[str]:
@@ -174,9 +184,14 @@ class WebhookServer:
             )
         
         # 放入队列，等待 Bot 消费
+        # 获取用户的 context_token（如果有缓存）
+        user_context = self._user_contexts.get(to_user, {})
+        context_token = user_context.get("context_token")
+        
         await self.queue.put({
             "to": to_user,
             "text": message_text,
+            "context_token": context_token,
             "timestamp": datetime.now().isoformat(),
             "raw": body,
         })

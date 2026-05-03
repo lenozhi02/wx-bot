@@ -100,58 +100,61 @@ class WeixinBot:
                 
                 to_user = item["to"]
                 text = item["text"]
+                context_token = item.get("context_token")
                 
-                logger.info(f"[webhook] 推送消息 → {to_user}")
-                await self._send_text(to_user, text)
+                logger.info(f"[webhook] 从队列取出消息 → {to_user}: {text[:50]}... (context_token={context_token})")
+                await self._send_text(to_user, text, context_token=context_token)
                 
-            except Exception as e:
-                logger.error(f"Webhook 消费异常: {e}")
+            except Exception:
+                logger.exception("[webhook] 消费异常，1秒后重试")
                 await asyncio.sleep(1)
     
     async def _handle_message(self, msg: Dict):
         """处理单条消息：提取文本 → 注册表分发 → 发送回复"""
         content = self.api.extract_text_from_message(msg).strip()
         from_user = msg.get("from_user_id", "")
+        context_token = msg.get("context_token")
+        session_id = msg.get("session_id")
         
         if not content or not from_user:
             return
         
         # 记录用户到 Webhook（用于默认推送目标）
         if self.webhook:
-            self.webhook.record_user(from_user)
+            self.webhook.record_user(from_user, context_token=context_token, session_id=session_id)
         
-        logger.info(f"📩 [{from_user}] {content}")
+        logger.info(f"📩 [{from_user}] {content} | context_token={context_token} | session_id={session_id}")
         
         # 通过注册表分发任务
         task_result = self.registry.dispatch(content, msg)
         
         if task_result is None:
-            await self._send_text(from_user, "⚠️ 暂不支持该指令，输入 help 查看可用功能")
+            await self._send_text(from_user, "⚠️ 暂不支持该指令，输入 help 查看可用功能", context_token=context_token)
             return
         
-        await self._send_result(from_user, task_result)
+        await self._send_result(from_user, task_result, context_token=context_token)
     
-    async def _send_result(self, to: str, result: TaskResult):
+    async def _send_result(self, to: str, result: TaskResult, context_token: Optional[str] = None):
         """发送任务结果到用户"""
         if result.error:
-            await self._send_text(to, result.text or f"❌ {result.error}")
+            await self._send_text(to, result.text or f"❌ {result.error}", context_token=context_token)
             return
         
         if result.text:
-            await self._send_text(to, result.text)
+            await self._send_text(to, result.text, context_token=context_token)
         
         # TODO: 支持发送图片/文件
     
-    async def _send_text(self, to: str, text: str):
+    async def _send_text(self, to: str, text: str, context_token: Optional[str] = None):
         """安全发送文本消息（异步包装）"""
         try:
-            logger.info(f"[send] 正在发送消息到 {to}, 长度={len(text)}")
-            result = await asyncio.to_thread(self.api.send_text_message, to=to, text=text)
-            logger.info(f"[send] 消息发送成功 → {to}")
+            logger.info(f"[send] 正在发送消息到 {to}, 长度={len(text)}, context_token={context_token}")
+            result = await asyncio.to_thread(self.api.send_text_message, to=to, text=text, context_token=context_token)
+            logger.info(f"[send] 消息发送成功 → {to}, 响应={result}")
             return result
-        except Exception as e:
-            logger.exception(f"[send] 发送失败 → {to}: {e}")
-            raise
+        except Exception:
+            logger.exception(f"[send] 发送失败 → {to}")
+            # 不抛异常，避免中断消费者循环
     
     def stop(self):
         self.running = False

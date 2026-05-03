@@ -16,6 +16,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
+logger = logging.getLogger(__name__)
 
 
 def build_registry() -> TaskRegistry:
@@ -83,6 +84,10 @@ def main():
     webhook = None
     if not args.no_webhook:
         webhook = WebhookServer(host=args.webhook_host, port=args.webhook_port)
+        # 从凭证中预加载用户ID作为默认推送目标
+        if creds.get("userId"):
+            webhook.set_default_user(creds["userId"])
+            logger.info(f"[main] 从凭证预加载默认用户: {creds['userId']}")
     
     # 创建机器人
     bot = WeixinBot(api, registry=registry, webhook=webhook)
