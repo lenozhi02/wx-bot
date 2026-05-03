@@ -2,6 +2,7 @@
 微信机器人设计文档
 1. 项目概述
 本项目是一个基于微信 iLink Bot API 的本地命令执行机器人。用户通过微信发送文本指令，机器人在本地安全执行预设命令并返回结果。
+主体参考 https://github.com/co-pine/wx-robot-ilink/
 
 # 1. 安装依赖
 pip install requests qrcode[pil]
