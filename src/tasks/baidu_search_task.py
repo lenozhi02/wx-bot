@@ -34,6 +34,56 @@ DEFAULT_DATE = None  # 脚本会使用默认日期
 # 超时控制：40分钟
 TASK_TIMEOUT = 40 * 60  # 2400秒
 
+# 中文机构名 → 英文代码 映射表
+HOSPITAL_NAME_MAP = {
+    # 中文名（支持多种叫法）→ 英文代码
+    "盛诺一家": "stluciabj",
+    "盛诺": "stluciabj",
+    "北京协和": "pumch",
+    "北京协和医院": "pumch",
+    "协和": "pumch",
+    "华山": "huashan",
+    "华山医院": "huashan",
+    "浙大四院": "zju4h",
+    "浙江大学医学院附属第四医院": "zju4h",
+    "浙大二院": "z2hospital",
+    "浙江大学医学院附属第二医院": "z2hospital",
+    "浙江省人民医院": "hospitalstar",
+    "浙江省人医": "hospitalstar",
+    "深圳三院": "sz3h",
+    "深圳市第三人民医院": "sz3h",
+    "嘉会": "jiahui",
+    "嘉会国际医院": "jiahui",
+    "高博": "gaobo",
+    "北京高博": "gaobo",
+    "北京高博医院": "gaobo",
+    "红房子": "fckyy",
+    "红房子医院": "fckyy",
+    "中山一院": "fahsysu",
+    "中山大学附属第一医院": "fahsysu",
+    "成都中西医": "cdzxy",
+    "成都市中西医结合医院": "cdzxy",
+    "惠每": "huimei",
+    "惠每医疗": "huimei",
+}
+
+# 反向映射：英文代码 → 中文名（用于显示）
+HOSPITAL_CODE_MAP = {
+    "stluciabj": "盛诺一家",
+    "pumch": "北京协和医院",
+    "huashan": "华山医院",
+    "zju4h": "浙大四院",
+    "z2hospital": "浙大二院",
+    "hospitalstar": "浙江省人民医院",
+    "sz3h": "深圳三院",
+    "jiahui": "嘉会国际医院",
+    "gaobo": "北京高博医院",
+    "fckyy": "红房子医院",
+    "fahsysu": "中山一院",
+    "cdzxy": "成都市中西医结合医院",
+    "huimei": "惠每医疗",
+}
+
 
 class BaiduSearchTaskHandler(BackgroundTaskHandler):
     """
@@ -110,9 +160,10 @@ class BaiduSearchTaskHandler(BackgroundTaskHandler):
                 # 提取关键输出信息
                 summary = self._extract_summary(stdout_text, stderr_text)
                 
+                display_name = self._get_hospital_display(hospital)
                 return TaskResult.success(
                     f"✅ 百度搜索任务完成\n"
-                    f"机构: {hospital}\n"
+                    f"机构: {display_name} ({hospital})\n"
                     f"日期: {date or '默认'}\n"
                     f"邮箱: {email or '默认'}\n"
                     f"\n{summary}\n"
@@ -121,7 +172,8 @@ class BaiduSearchTaskHandler(BackgroundTaskHandler):
             else:
                 error = stderr_text[:500] if stderr_text else f"返回码: {process.returncode}"
                 logger.error(f"[{self.name}] 搜索失败: {error}")
-                return TaskResult.fail(f"搜索脚本执行失败:\n{error}")
+                display_name = self._get_hospital_display(hospital)
+                return TaskResult.fail(f"搜索脚本执行失败 ({display_name}):\n{error}")
         
         except asyncio.TimeoutError:
             logger.error(f"[{self.name}] 搜索超时（{TASK_TIMEOUT}秒）")
@@ -131,11 +183,44 @@ class BaiduSearchTaskHandler(BackgroundTaskHandler):
                 await process.wait()
             except Exception:
                 pass
-            return TaskResult.fail(f"⏱️ 搜索任务超时（限制{TASK_TIMEOUT//60}分钟）")
+            display_name = self._get_hospital_display(hospital)
+            return TaskResult.fail(f"⏱️ 搜索任务超时 ({display_name})，限制{TASK_TIMEOUT//60}分钟")
         
         except Exception as e:
             logger.exception(f"[{self.name}] 搜索异常")
-            return TaskResult.fail(f"搜索任务异常: {str(e)}")
+            display_name = self._get_hospital_display(hospital)
+            return TaskResult.fail(f"搜索任务异常 ({display_name}): {str(e)}")
+    
+    def _resolve_hospital(self, name: str) -> str:
+        """
+        将中文机构名或英文代码解析为英文代码
+        
+        支持:
+        - 中文名: "盛诺一家" → "stluciabj"
+        - 英文名: "stluciabj" → "stluciabj"
+        - 别名: "盛诺" → "stluciabj"
+        """
+        name = name.strip()
+        
+        # 直接匹配中文映射
+        if name in HOSPITAL_NAME_MAP:
+            return HOSPITAL_NAME_MAP[name]
+        
+        # 已经是英文代码
+        if name.lower() in HOSPITAL_CODE_MAP:
+            return name.lower()
+        
+        # 尝试模糊匹配（去除空格、医院等后缀）
+        simplified = name.replace("医院", "").replace("市", "").replace("省", "").strip()
+        if simplified in HOSPITAL_NAME_MAP:
+            return HOSPITAL_NAME_MAP[simplified]
+        
+        # 未匹配到，原样返回（让脚本自己报错）
+        return name
+    
+    def _get_hospital_display(self, code: str) -> str:
+        """获取机构中文显示名"""
+        return HOSPITAL_CODE_MAP.get(code, code)
     
     def _parse_args(self, content: str):
         """
@@ -143,29 +228,38 @@ class BaiduSearchTaskHandler(BackgroundTaskHandler):
         
         格式: 百度 机构名 [日期范围] [邮箱]
         
-        返回: (hospital, date, email) 或 TaskResult(错误提示)
+        返回: (hospital_code, date, email) 或 TaskResult(错误提示)
         """
         parts = content.strip().split()
         
         if len(parts) < 2:
+            hospitals_list = "\n".join(
+                f"• {cn} ({en})" for cn, en in sorted(
+                    set((HOSPITAL_CODE_MAP.get(k, k), k) for k in HOSPITAL_CODE_MAP)
+                )
+            )
             return TaskResult.success(
                 "📖 百度搜索用法:\n"
                 "百度 机构名 [日期范围] [邮箱]\n\n"
                 "示例:\n"
-                "• 百度 stluciabj\n"
-                "• 百度 stluciabj 2026-04-29,2026-04-30\n"
-                "• 百度 stluciabj 2026-04-29,2026-04-30 9089120@qq.com\n\n"
-                "支持的机构: stluciabj, zju4h, huashan, pumch, ..."
+                "• 百度 盛诺一家\n"
+                "• 百度 北京协和 2026-04-29,2026-04-30\n"
+                "• 百度 华山医院 2026-04-29,2026-04-30 9089120@qq.com\n\n"
+                f"支持的机构:\n{hospitals_list}"
             )
         
-        hospital = parts[1]
+        # 解析机构名（支持中文）
+        raw_hospital = parts[1]
+        hospital = self._resolve_hospital(raw_hospital)
+        display_name = self._get_hospital_display(hospital)
+        
         date = None
         email = None
         
         # 解析可选参数（日期和邮箱）
         for i in range(2, len(parts)):
             part = parts[i]
-            # 判断是否是日期格式 (YYYY-MM-DD 或 YYYY-MM-DD,YYYY-MM-DD)
+            # 判断是否是日期格式
             if self._is_date_format(part):
                 date = part
             # 判断是否是邮箱
@@ -175,6 +269,8 @@ class BaiduSearchTaskHandler(BackgroundTaskHandler):
         # 使用默认值
         if not email:
             email = DEFAULT_EMAIL
+        
+        logger.info(f"[{self.name}] 机构名解析: '{raw_hospital}' → '{hospital}' ({display_name})")
         
         return hospital, date, email
     
