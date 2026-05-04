@@ -12,6 +12,7 @@ from src.tasks.search_task import SearchTaskHandler
 from src.tasks.ai_task import AITaskHandler
 from src.tasks.help_task import HelpTaskHandler
 from src.tasks.long_task import LongRunningTaskHandler, DataSyncTaskHandler
+from src.tasks.baidu_search_task import BaiduSearchTaskHandler
 from src.webhook import WebhookServer
 
 logging.basicConfig(
@@ -40,6 +41,7 @@ def build_registry(executor: TaskExecutor) -> TaskRegistry:
     # 3. 后台长时间任务
     registry.register(LongRunningTaskHandler(executor))
     registry.register(DataSyncTaskHandler(executor))
+    registry.register(BaiduSearchTaskHandler(executor))
     
     # 4. 网络搜索（示例扩展）
     registry.register(SearchTaskHandler(max_results=5))
@@ -51,6 +53,7 @@ def build_registry(executor: TaskExecutor) -> TaskRegistry:
     help_handler.set_help_text(
         "• 输入任意消息 — AI 助手自动回复\n"
         "• status — 服务器巡检\n"
+        "• 百度 机构名 [日期] [邮箱] — 百度搜索报告\n"
         "• 长任务 / longtask — 后台耗时任务示例\n"
         "• 同步 / sync — 数据同步任务示例\n"
         "• 搜索 <关键词> — 网络搜索"
