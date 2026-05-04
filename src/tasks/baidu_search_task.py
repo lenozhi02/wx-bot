@@ -153,8 +153,16 @@ class BaiduSearchTaskHandler(BackgroundTaskHandler):
             stdout_text = stdout.decode('utf-8', errors='replace') if stdout else ""
             stderr_text = stderr.decode('utf-8', errors='replace') if stderr else ""
             
-            if process.returncode == 0:
-                logger.info(f"[{self.name}] 搜索完成")
+            # 判断执行结果
+            # 返回码 0 = 正常完成
+            # 返回码 -15 = 被 SIGTERM 终止（脚本 cleanup_chrome 中 sys.exit 导致，实际已完成）
+            is_success = (process.returncode == 0 or process.returncode == -15)
+            
+            # 额外检查：stdout 中是否包含"完成"关键字
+            has_complete = '完成' in stdout_text or 'complete' in stdout_text.lower() or '发送' in stdout_text
+            
+            if is_success or has_complete:
+                logger.info(f"[{self.name}] 搜索完成 (returncode={process.returncode})")
                 self.report_progress("搜索完成，正在整理结果...")
                 
                 # 提取关键输出信息

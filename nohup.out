@@ -1,0 +1,76 @@
+2026-05-04 09:54:52,008 - src.auth - INFO - [auth] 使用已保存的凭证 (accountId=d53c10d66481@im.bot)
+2026-05-04 09:54:52,008 - src.tasks.registry - INFO - [registry] 注册任务处理器: help (priority=5)
+2026-05-04 09:54:52,008 - src.tasks.registry - INFO - [registry] 注册任务处理器: status (priority=10)
+2026-05-04 09:54:52,008 - src.tasks.registry - INFO - [registry] 注册任务处理器: long_task (priority=25)
+2026-05-04 09:54:52,008 - src.tasks.registry - INFO - [registry] 注册任务处理器: data_sync (priority=25)
+2026-05-04 09:54:52,008 - src.tasks.registry - INFO - [registry] 注册任务处理器: baidu_search (priority=22)
+2026-05-04 09:54:52,008 - src.tasks.registry - INFO - [registry] 注册任务处理器: search (priority=30)
+2026-05-04 09:54:52,008 - src.tasks.registry - INFO - [registry] 注册任务处理器: ai (priority=100)
+2026-05-04 09:54:52,009 - src.webhook - INFO - [webhook] 默认用户已设置: o9cq808082W1eazbzsTErAU-GQCY@im.wechat
+2026-05-04 09:54:52,009 - __main__ - INFO - [main] 从凭证预加载默认用户: o9cq808082W1eazbzsTErAU-GQCY@im.wechat
+2026-05-04 09:54:52,009 - src.bot - INFO - 🤖 机器人启动，监听消息...
+2026-05-04 09:54:52,009 - src.bot - INFO - 已注册处理器 (7): help, status, baidu_search, long_task, data_sync, search, ai
+2026-05-04 09:54:52,009 - src.webhook - INFO - 🌐 Webhook 服务已启动: http://0.0.0.0:18789
+2026-05-04 09:54:52,009 - src.webhook - INFO -    推送接口: POST http://0.0.0.0:18789/webhook/send
+2026-05-04 09:54:52,009 - src.webhook - INFO -    默认用户: o9cq808082W1eazbzsTErAU-GQCY@im.wechat
+2026-05-04 09:54:52,011 - src.bot - INFO - 📬 任务结果消费者启动
+2026-05-04 09:54:52,011 - src.tasks.background - INFO - [executor] 启动，worker 数量: 3
+2026-05-04 09:54:52,011 - src.bot - INFO - 🌐 Webhook 消费者启动
+2026-05-04 09:54:52,011 - src.tasks.background - INFO - [executor] worker-0 启动
+2026-05-04 09:54:52,011 - src.tasks.background - INFO - [executor] worker-1 启动
+2026-05-04 09:54:52,012 - src.tasks.background - INFO - [executor] worker-2 启动
+2026-05-04 09:56:11,273 - src.bot - INFO - 📩 [o9cq808082W1eazbzsTErAU-GQCY@im.wechat] 百度 盛诺一家  2026-04-28,2026-04-30 9089120@qq.com | context_token=AARzJWAFAAABAAAAAAATPCdeaePNKuRruvz3aSAAAAB+9905Q6UiugPBawU3n3cyzQX+LkN8ofRzsCZYN0mt7iqKwoiqrc9FthZXNYop3ii0JxPsxhAEpZBw1o4jHdHN/EguIgIB | session_id=
+2026-05-04 09:56:11,273 - src.tasks.registry - INFO - [registry] 分发到处理器: baidu_search
+2026-05-04 09:56:11,273 - src.bot - INFO - [send] 正在发送消息到 o9cq808082W1eazbzsTErAU-GQCY@im.wechat, 长度=80, context_token=AARzJWAFAAABAAAAAAATPCdeaePNKuRruvz3aSAAAAB+9905Q6UiugPBawU3n3cyzQX+LkN8ofRzsCZYN0mt7iqKwoiqrc9FthZXNYop3ii0JxPsxhAEpZBw1o4jHdHN/EguIgIB
+2026-05-04 09:56:11,273 - src.tasks.background - INFO - [executor] 任务已提交: task-1777859771273-139685328261376 (baidu_search)
+2026-05-04 09:56:11,273 - src.weixin_api - INFO - [api] send_text_message → to=o9cq808082W1eazbzsTErAU-GQCY@im.wechat, client_id=bot-1777859771273-5252, text_len=80
+2026-05-04 09:56:11,275 - src.tasks.background - INFO - [executor] worker-0 开始执行任务: task-1777859771273-139685328261376
+2026-05-04 09:56:11,276 - src.tasks.baidu_search_task - INFO - [baidu_search] 机构名解析: '盛诺一家' → 'stluciabj' (盛诺一家)
+2026-05-04 09:56:11,276 - src.tasks.baidu_search_task - INFO - [baidu_search] 开始执行搜索: hospital=stluciabj, date=2026-04-28,2026-04-30, email=9089120@qq.com
+2026-05-04 09:56:11,276 - src.tasks.background - INFO - [task] task-1777859771273-139685328261376 进度: 正在启动 Chrome 搜索...
+2026-05-04 09:56:11,276 - src.tasks.baidu_search_task - INFO - [baidu_search] 执行命令: python3 /root/.hermes/skills/openclaw-imports/keyword-search/scripts/inseas_search_chrome.py --hospital stluciabj --keep-files --date 2026-04-28,2026-04-30 --email 9089120@qq.com
+2026-05-04 09:56:11,277 - src.tasks.background - INFO - [task] task-1777859771273-139685328261376 进度: Chrome 搜索进行中，请耐心等待...
+2026-05-04 09:56:11,495 - src.weixin_api - INFO - [api] send_text_message 响应: {}
+2026-05-04 09:56:11,496 - src.bot - INFO - [send] 消息发送成功 → o9cq808082W1eazbzsTErAU-GQCY@im.wechat, 响应={}
+2026-05-04 10:07:59,543 - aiohttp.access - INFO - 199.45.154.115 [04/May/2026:10:07:59 +0800] "GET / HTTP/1.1" 200 1264 "-" "-"
+2026-05-04 10:08:07,854 - aiohttp.access - INFO - 199.45.154.115 [04/May/2026:10:08:07 +0800] "UNKNOWN / HTTP/1.0" 400 214 "-" "-"
+2026-05-04 10:08:12,787 - aiohttp.access - INFO - 199.45.154.115 [04/May/2026:10:08:12 +0800] "GET / HTTP/1.1" 200 1264 "-" "Mozilla/5.0 (compatible; CensysInspect/1.1; +https://about.censys.io/)"
+2026-05-04 10:08:16,799 - aiohttp.server - ERROR - Error handling request from 199.45.154.115
+Traceback (most recent call last):
+  File "/usr/local/lib64/python3.11/site-packages/aiohttp/web_protocol.py", line 408, in data_received
+    messages, upgraded, tail = self._request_parser.feed_data(data)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "aiohttp/_http_parser.pyx", line 556, in aiohttp._http_parser.HttpParser.feed_data
+aiohttp.http_exceptions.BadHttpMessage: 400, message:
+  Pause on PRI/Upgrade:
+
+    b''
+      ^
+2026-05-04 10:08:16,801 - aiohttp.access - INFO - 199.45.154.115 [04/May/2026:10:08:16 +0800] "UNKNOWN / HTTP/1.0" 400 196 "-" "-"
+2026-05-04 10:08:18,229 - aiohttp.access - INFO - 199.45.154.115 [04/May/2026:10:08:18 +0800] "GET /favicon.ico HTTP/1.1" 404 193 "-" "Mozilla/5.0 (compatible; CensysInspect/1.1; +https://about.censys.io/)"
+2026-05-04 10:08:30,023 - aiohttp.access - INFO - 199.45.154.115 [04/May/2026:10:08:30 +0800] "UNKNOWN / HTTP/1.0" 400 214 "-" "-"
+2026-05-04 10:08:31,747 - aiohttp.access - INFO - 199.45.154.115 [04/May/2026:10:08:31 +0800] "GET /login HTTP/1.1" 404 174 "-" "Mozilla/5.0 (compatible; CensysInspect/1.1; +https://about.censys.io/)"
+2026-05-04 10:23:02,317 - src.tasks.baidu_search_task - ERROR - [baidu_search] 搜索失败: 返回码: -15
+2026-05-04 10:23:02,317 - src.tasks.background - INFO - [executor] 任务完成: task-1777859771273-139685328261376, 耗时=1611.0s
+2026-05-04 10:23:02,317 - src.bot - INFO - [callback] 任务 task-1777859771273-139685328261376 完成，推送给 o9cq808082W1eazbzsTErAU-GQCY@im.wechat
+2026-05-04 10:23:02,317 - src.bot - INFO - [send] 正在发送消息到 o9cq808082W1eazbzsTErAU-GQCY@im.wechat, 长度=141, context_token=AARzJWAFAAABAAAAAAATPCdeaePNKuRruvz3aSAAAAB+9905Q6UiugPBawU3n3cyzQX+LkN8ofRzsCZYN0mt7iqKwoiqrc9FthZXNYop3ii0JxPsxhAEpZBw1o4jHdHN/EguIgIB
+2026-05-04 10:23:02,317 - src.weixin_api - INFO - [api] send_text_message → to=o9cq808082W1eazbzsTErAU-GQCY@im.wechat, client_id=bot-1777861382317-9627, text_len=141
+2026-05-04 10:23:02,317 - src.bot - INFO - [result] 任务 task-1777859771273-139685328261376 结果已消费 (status=success)
+2026-05-04 10:23:02,605 - src.weixin_api - INFO - [api] send_text_message 响应: {}
+2026-05-04 10:23:02,605 - src.bot - INFO - [send] 消息发送成功 → o9cq808082W1eazbzsTErAU-GQCY@im.wechat, 响应={}
+2026-05-04 11:59:49,073 - aiohttp.access - INFO - 44.220.185.169 [04/May/2026:11:59:49 +0800] "UNKNOWN / HTTP/1.0" 400 218 "-" "-"
+2026-05-04 11:59:49,524 - aiohttp.access - INFO - 44.220.185.169 [04/May/2026:11:59:49 +0800] "GET / HTTP/1.1" 200 1264 "-" "Mozilla/5.0 (Windows NT 6.2;en-US) AppleWebKit/537.32.36 (KHTML, live Gecko) Chrome/53.0.3092.94 Safari/537.32"
+2026-05-04 12:32:39,117 - aiohttp.access - INFO - 79.124.59.86 [04/May/2026:12:32:39 +0800] "UNKNOWN / HTTP/1.0" 400 206 "-" "-"
+2026-05-04 14:09:08,396 - aiohttp.access - INFO - 101.251.219.7 [04/May/2026:14:09:08 +0800] "UNKNOWN / HTTP/1.0" 400 223 "-" "-"
+2026-05-04 14:09:24,845 - aiohttp.access - INFO - 101.251.219.7 [04/May/2026:14:09:24 +0800] "GET / HTTP/1.1" 200 1264 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-05-04 14:09:50,819 - aiohttp.access - INFO - 101.251.219.7 [04/May/2026:14:09:50 +0800] "GET /v1/models HTTP/1.1" 404 174 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-05-04 14:10:13,919 - aiohttp.access - INFO - 101.251.219.7 [04/May/2026:14:10:13 +0800] "GET /v1/embeddings HTTP/1.1" 404 174 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-05-04 14:10:38,537 - aiohttp.access - INFO - 101.251.219.7 [04/May/2026:14:10:38 +0800] "GET /v1/completions HTTP/1.1" 404 174 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-05-04 14:10:58,574 - aiohttp.access - INFO - 101.251.219.7 [04/May/2026:14:10:58 +0800] "GET /favicon.ico HTTP/1.1" 404 174 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-05-04 14:33:43,040 - aiohttp.access - INFO - 47.83.223.65 [04/May/2026:14:33:43 +0800] "UNKNOWN / HTTP/1.0" 400 218 "-" "-"
+2026-05-04 14:33:43,137 - aiohttp.access - INFO - 47.83.223.65 [04/May/2026:14:33:43 +0800] "UNKNOWN / HTTP/1.0" 400 218 "-" "-"
+2026-05-04 14:33:43,547 - aiohttp.access - INFO - 47.83.223.65 [04/May/2026:14:33:43 +0800] "UNKNOWN / HTTP/1.0" 400 214 "-" "-"
+2026-05-04 14:33:43,638 - aiohttp.access - INFO - 47.83.223.65 [04/May/2026:14:33:43 +0800] "GET / HTTP/1.1" 200 1264 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.122 Safari/537.36"
+2026-05-04 14:33:43,768 - aiohttp.access - INFO - 47.83.223.65 [04/May/2026:14:33:43 +0800] "GET /favicon.ico HTTP/1.1" 404 174 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.122 Safari/537.36"
+2026-05-04 15:13:00,949 - aiohttp.access - INFO - 64.62.197.48 [04/May/2026:15:13:00 +0800] "GET / HTTP/1.1" 200 1264 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0"
+2026-05-04 15:13:39,373 - aiohttp.access - INFO - 64.62.197.51 [04/May/2026:15:13:39 +0800] "GET /favicon.ico HTTP/1.1" 404 174 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Safari/605.1.15"
