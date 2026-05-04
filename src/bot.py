@@ -6,25 +6,31 @@ from typing import Dict, Optional
 from src.weixin_api import WeixinAPI
 from src.tasks.registry import TaskRegistry
 from src.tasks.base import TaskResult
+from src.tasks.background import TaskExecutor, BackgroundTask
 from src.webhook import WebhookServer
 
 logger = logging.getLogger(__name__)
 
 
 class WeixinBot:
-    """微信机器人 —— 支持 Webhook 推送的可扩展版本"""
+    """微信机器人 —— 支持后台任务和 Webhook 推送的可扩展版本"""
     
     def __init__(
         self,
         api: WeixinAPI,
         registry: TaskRegistry = None,
-        webhook: Optional[WebhookServer] = None
+        webhook: Optional[WebhookServer] = None,
+        executor: Optional[TaskExecutor] = None
     ):
         self.api = api
         self.registry = registry or TaskRegistry()
         self.webhook = webhook
+        self.executor = executor or TaskExecutor(max_workers=3)
         self.running = False
         self.get_updates_buf = ""
+        
+        # 设置任务完成回调
+        self.executor.set_result_callback(self._on_task_complete)
     
     def start(self):
         """启动主循环（同步入口，内部运行事件循环）"""
@@ -34,7 +40,7 @@ class WeixinBot:
             pass
     
     async def _run(self):
-        """异步主循环：同时运行消息轮询和 Webhook 消费"""
+        """异步主循环：同时运行消息轮询、Webhook 消费、后台任务执行器"""
         self.running = True
         handlers = self.registry.list_handlers()
         
@@ -45,9 +51,11 @@ class WeixinBot:
         if self.webhook:
             await self.webhook.setup()
         
-        # 并发运行两个任务
+        # 并发运行所有任务
         tasks = [
             asyncio.create_task(self._poll_loop()),
+            asyncio.create_task(self._result_consumer()),
+            asyncio.create_task(self.executor.start()),
         ]
         if self.webhook:
             tasks.append(asyncio.create_task(self._webhook_consumer()))
@@ -64,19 +72,15 @@ class WeixinBot:
         """微信消息长轮询循环"""
         while self.running:
             try:
-                # 长轮询获取消息（35秒超时）
-                # WeixinAPI.get_updates 是同步方法，在线程池中执行
                 result = await asyncio.to_thread(
                     self.api.get_updates,
                     buf=self.get_updates_buf,
                     timeout_ms=35000
                 )
                 
-                # 更新 buf
                 if "get_updates_buf" in result:
                     self.get_updates_buf = result["get_updates_buf"]
                 
-                # 处理消息
                 msgs = result.get("msgs", [])
                 for msg in msgs:
                     await self._handle_message(msg)
@@ -109,6 +113,43 @@ class WeixinBot:
                 logger.exception("[webhook] 消费异常，1秒后重试")
                 await asyncio.sleep(1)
     
+    async def _result_consumer(self):
+        """后台任务结果消费者（备用，通过回调已处理大部分情况）"""
+        logger.info("📬 任务结果消费者启动")
+        
+        while self.running:
+            try:
+                task = await asyncio.wait_for(self.executor.result_queue.get(), timeout=2.0)
+                # 回调已处理推送，这里仅做日志记录
+                logger.info(f"[result] 任务 {task.task_id} 结果已消费 (status={task.status.value})")
+                
+            except asyncio.TimeoutError:
+                continue
+            except Exception:
+                logger.exception("[result] 结果消费异常")
+    
+    async def _on_task_complete(self, task: BackgroundTask):
+        """任务完成回调：自动推送结果到微信"""
+        if not task.result:
+            return
+        
+        user_id = task.user_id
+        result = task.result
+        context_token = task.context_token
+        
+        logger.info(f"[callback] 任务 {task.task_id} 完成，推送给 {user_id}")
+        
+        # 构建结果消息
+        header = f"📬 后台任务完成\n任务ID: {task.task_id}\n类型: {task.handler_name}\n耗时: {task.duration:.1f}秒\n状态: {task.status.value}\n"
+        header += "=" * 20 + "\n"
+        
+        if result.error:
+            text = header + f"❌ {result.text or result.error}"
+        else:
+            text = header + result.text
+        
+        await self._send_text(user_id, text, context_token=context_token)
+    
     async def _handle_message(self, msg: Dict):
         """处理单条消息：提取文本 → 注册表分发 → 发送回复"""
         content = self.api.extract_text_from_message(msg).strip()
@@ -119,7 +160,7 @@ class WeixinBot:
         if not content or not from_user:
             return
         
-        # 记录用户到 Webhook（用于默认推送目标）
+        # 记录用户到 Webhook
         if self.webhook:
             self.webhook.record_user(from_user, context_token=context_token, session_id=session_id)
         
@@ -142,8 +183,6 @@ class WeixinBot:
         
         if result.text:
             await self._send_text(to, result.text, context_token=context_token)
-        
-        # TODO: 支持发送图片/文件
     
     async def _send_text(self, to: str, text: str, context_token: Optional[str] = None):
         """安全发送文本消息（异步包装）"""
@@ -154,8 +193,8 @@ class WeixinBot:
             return result
         except Exception:
             logger.exception(f"[send] 发送失败 → {to}")
-            # 不抛异常，避免中断消费者循环
     
     def stop(self):
         self.running = False
+        self.executor.stop()
         logger.info("机器人已停止")

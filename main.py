@@ -6,10 +6,12 @@ from src.auth import AuthManager
 from src.weixin_api import WeixinAPI
 from src.bot import WeixinBot
 from src.tasks.registry import TaskRegistry
+from src.tasks.background import TaskExecutor
 from src.tasks.status_task import StatusTaskHandler
 from src.tasks.search_task import SearchTaskHandler
 from src.tasks.ai_task import AITaskHandler
 from src.tasks.help_task import HelpTaskHandler
+from src.tasks.long_task import LongRunningTaskHandler, DataSyncTaskHandler
 from src.webhook import WebhookServer
 
 logging.basicConfig(
@@ -19,7 +21,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def build_registry() -> TaskRegistry:
+def build_registry(executor: TaskExecutor) -> TaskRegistry:
     """
     构建并配置任务处理器注册表。
     
@@ -35,15 +37,22 @@ def build_registry() -> TaskRegistry:
     # 2. 服务器状态巡检
     registry.register(StatusTaskHandler(cmd_timeout=10, max_output_lines=50))
     
-    # 3. 网络搜索（示例扩展）
+    # 3. 后台长时间任务
+    registry.register(LongRunningTaskHandler(executor))
+    registry.register(DataSyncTaskHandler(executor))
+    
+    # 4. 网络搜索（示例扩展）
     registry.register(SearchTaskHandler(max_results=5))
     
-    # 4. AI 对话兜底（最低优先级）
+    # 5. AI 对话兜底（最低优先级）
     registry.register(AITaskHandler(prefix="AI", fallback=True))
     
     # 动态更新帮助文本
     help_handler.set_help_text(
         "• 输入任意消息 — AI 助手自动回复\n"
+        "• status — 服务器巡检\n"
+        "• 长任务 / longtask — 后台耗时任务示例\n"
+        "• 同步 / sync — 数据同步任务示例\n"
         "• 搜索 <关键词> — 网络搜索"
     )
     
@@ -56,6 +65,7 @@ def main():
     parser.add_argument('--webhook-host', default='0.0.0.0', help='Webhook 监听地址 (默认: 0.0.0.0)')
     parser.add_argument('--webhook-port', type=int, default=8080, help='Webhook 监听端口 (默认: 8080)')
     parser.add_argument('--no-webhook', action='store_true', help='禁用 Webhook 服务')
+    parser.add_argument('--workers', type=int, default=3, help='后台任务并发数 (默认: 3)')
     args = parser.parse_args()
     
     auth = AuthManager()
@@ -77,8 +87,11 @@ def main():
     # 初始化 API
     api = WeixinAPI(base_url=creds["baseUrl"], token=creds["token"])
     
+    # 创建后台任务执行器
+    executor = TaskExecutor(max_workers=args.workers)
+    
     # 构建任务注册表
-    registry = build_registry()
+    registry = build_registry(executor)
     
     # 创建 Webhook 服务（可选）
     webhook = None
@@ -90,7 +103,7 @@ def main():
             logger.info(f"[main] 从凭证预加载默认用户: {creds['userId']}")
     
     # 创建机器人
-    bot = WeixinBot(api, registry=registry, webhook=webhook)
+    bot = WeixinBot(api, registry=registry, webhook=webhook, executor=executor)
     
     # 优雅退出
     import signal
