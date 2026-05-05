@@ -8,6 +8,7 @@ from src.tasks.registry import TaskRegistry
 from src.tasks.base import TaskResult
 from src.tasks.background import TaskExecutor, BackgroundTask
 from src.webhook import WebhookServer
+from src.ui.bus import EventBus
 
 logger = logging.getLogger(__name__)
 
@@ -20,17 +21,23 @@ class WeixinBot:
         api: WeixinAPI,
         registry: TaskRegistry = None,
         webhook: Optional[WebhookServer] = None,
-        executor: Optional[TaskExecutor] = None
+        executor: Optional[TaskExecutor] = None,
+        event_bus: Optional[EventBus] = None
     ):
         self.api = api
         self.registry = registry or TaskRegistry()
         self.webhook = webhook
         self.executor = executor or TaskExecutor(max_workers=3)
+        self.event_bus = event_bus
         self.running = False
         self.get_updates_buf = ""
         
         # 设置任务完成回调
         self.executor.set_result_callback(self._on_task_complete)
+        
+        # 注册任务事件监听
+        if self.event_bus:
+            self._register_task_events()
     
     def start(self):
         """启动主循环（同步入口，内部运行事件循环）"""
@@ -70,6 +77,7 @@ class WeixinBot:
     
     async def _poll_loop(self):
         """微信消息长轮询循环"""
+        connected = False
         while self.running:
             try:
                 result = await asyncio.to_thread(
@@ -77,6 +85,13 @@ class WeixinBot:
                     buf=self.get_updates_buf,
                     timeout_ms=35000
                 )
+                
+                # 连接状态变更事件
+                if not connected and self.event_bus:
+                    connected = True
+                    await self.event_bus.emit("bot:connected", {
+                        "account_id": getattr(self.api, "account_id", ""),
+                    }, source="bot")
                 
                 if "get_updates_buf" in result:
                     self.get_updates_buf = result["get_updates_buf"]
@@ -87,6 +102,11 @@ class WeixinBot:
                 
             except Exception as e:
                 logger.error(f"轮询异常: {e}")
+                if connected and self.event_bus:
+                    connected = False
+                    await self.event_bus.emit("bot:disconnected", {
+                        "error": str(e),
+                    }, source="bot")
                 await asyncio.sleep(5)
     
     async def _webhook_consumer(self):
@@ -107,6 +127,15 @@ class WeixinBot:
                 context_token = item.get("context_token")
                 
                 logger.info(f"[webhook] 从队列取出消息 → {to_user}: {text[:50]}... (context_token={context_token})")
+                
+                # 触发 Webhook 投递事件
+                if self.event_bus:
+                    await self.event_bus.emit("webhook:delivered", {
+                        "to_user": to_user,
+                        "text_preview": text[:100],
+                        "context_token": context_token,
+                    }, source="webhook")
+                
                 await self._send_text(to_user, text, context_token=context_token)
                 
             except Exception:
@@ -128,6 +157,14 @@ class WeixinBot:
             except Exception:
                 logger.exception("[result] 结果消费异常")
     
+    def _register_task_events(self):
+        """注册任务事件监听器"""
+        async def on_task_event(event):
+            # 将任务事件透传到 UI 层
+            pass  # 事件已在 executor 中发布
+        
+        self.event_bus.on("task:*", on_task_event)
+    
     async def _on_task_complete(self, task: BackgroundTask):
         """任务完成回调：自动推送结果到微信"""
         if not task.result:
@@ -138,6 +175,18 @@ class WeixinBot:
         context_token = task.context_token
         
         logger.info(f"[callback] 任务 {task.task_id} 完成，推送给 {user_id}")
+        
+        # 触发任务完成事件
+        if self.event_bus:
+            await self.event_bus.emit("task:completed" if not result.error else "task:failed", {
+                "task_id": task.task_id,
+                "handler_name": task.handler_name,
+                "user_id": user_id,
+                "duration": task.duration,
+                "status": task.status.value,
+                "error": result.error,
+                "text_preview": result.text[:200] if result.text else "",
+            }, source="bot")
         
         # 构建结果消息
         header = f"📬 后台任务完成\n任务ID: {task.task_id}\n类型: {task.handler_name}\n耗时: {task.duration:.1f}秒\n状态: {task.status.value}\n"
@@ -166,6 +215,15 @@ class WeixinBot:
         
         logger.info(f"📩 [{from_user}] {content} | context_token={context_token} | session_id={session_id}")
         
+        # 触发消息接收事件
+        if self.event_bus:
+            await self.event_bus.emit("bot:message_received", {
+                "from_user": from_user,
+                "content": content,
+                "context_token": context_token,
+                "session_id": session_id,
+            }, source="bot")
+        
         # 通过注册表分发任务
         task_result = self.registry.dispatch(content, msg)
         
@@ -190,9 +248,29 @@ class WeixinBot:
             logger.info(f"[send] 正在发送消息到 {to}, 长度={len(text)}, context_token={context_token}")
             result = await asyncio.to_thread(self.api.send_text_message, to=to, text=text, context_token=context_token)
             logger.info(f"[send] 消息发送成功 → {to}, 响应={result}")
+            
+            # 触发消息发送事件
+            if self.event_bus:
+                await self.event_bus.emit("bot:message_sent", {
+                    "to_user": to,
+                    "text_preview": text[:200],
+                    "context_token": context_token,
+                    "success": True,
+                }, source="bot")
+            
             return result
-        except Exception:
+        except Exception as e:
             logger.exception(f"[send] 发送失败 → {to}")
+            
+            # 触发发送失败事件
+            if self.event_bus:
+                await self.event_bus.emit("bot:message_sent", {
+                    "to_user": to,
+                    "text_preview": text[:200],
+                    "context_token": context_token,
+                    "success": False,
+                    "error": str(e),
+                }, source="bot")
     
     def stop(self):
         self.running = False

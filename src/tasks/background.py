@@ -30,6 +30,14 @@ from src.tasks.base import TaskHandler, TaskResult
 
 logger = logging.getLogger(__name__)
 
+# 延迟导入避免循环依赖
+def _get_event_bus():
+    try:
+        from src.ui.bus import EventBus
+        return EventBus
+    except ImportError:
+        return None
+
 
 class TaskStatus(Enum):
     PENDING = "pending"
@@ -71,12 +79,13 @@ class TaskExecutor:
     管理任务队列和结果队列，支持并发执行多个后台任务。
     """
     
-    def __init__(self, max_workers: int = 3):
+    def __init__(self, max_workers: int = 3, event_bus=None):
         self.max_workers = max_workers
         self.task_queue: asyncio.Queue = asyncio.Queue()
         self.result_queue: asyncio.Queue = asyncio.Queue()
         self.tasks: Dict[str, BackgroundTask] = {}
         self._result_callback: Optional[Callable[[BackgroundTask], Coroutine]] = None
+        self.event_bus = event_bus
         self.running = False
     
     def set_result_callback(self, callback: Callable[[BackgroundTask], Coroutine]):
@@ -88,6 +97,15 @@ class TaskExecutor:
         self.tasks[task.task_id] = task
         await self.task_queue.put((task, coro))
         logger.info(f"[executor] 任务已提交: {task.task_id} ({task.handler_name})")
+        
+        # 触发任务提交事件
+        if self.event_bus:
+            await self.event_bus.emit("task:submitted", {
+                "task_id": task.task_id,
+                "handler_name": task.handler_name,
+                "user_id": task.user_id,
+                "content": task.content[:100],
+            }, source="executor")
     
     async def start(self):
         """启动执行器，创建 worker 协程"""
@@ -115,6 +133,15 @@ class TaskExecutor:
             
             logger.info(f"[executor] {name} 开始执行任务: {task.task_id}")
             
+            # 触发任务开始事件
+            if self.event_bus:
+                await self.event_bus.emit("task:started", {
+                    "task_id": task.task_id,
+                    "handler_name": task.handler_name,
+                    "user_id": task.user_id,
+                    "worker": name,
+                }, source="executor")
+            
             try:
                 # 执行异步任务
                 result = await coro
@@ -122,14 +149,37 @@ class TaskExecutor:
                 task.status = TaskStatus.SUCCESS
                 logger.info(f"[executor] 任务完成: {task.task_id}, 耗时={task.duration:.1f}s")
                 
+                # 触发任务完成事件
+                if self.event_bus:
+                    await self.event_bus.emit("task:completed", {
+                        "task_id": task.task_id,
+                        "handler_name": task.handler_name,
+                        "user_id": task.user_id,
+                        "duration": task.duration,
+                        "status": task.status.value,
+                    }, source="executor")
+                
             except asyncio.CancelledError:
                 task.status = TaskStatus.CANCELLED
                 logger.warning(f"[executor] 任务取消: {task.task_id}")
+                
+                if self.event_bus:
+                    await self.event_bus.emit("task:cancelled", {
+                        "task_id": task.task_id,
+                        "handler_name": task.handler_name,
+                    }, source="executor")
                 
             except Exception as e:
                 task.status = TaskStatus.FAILED
                 task.result = TaskResult.fail(f"任务执行异常: {str(e)}")
                 logger.exception(f"[executor] 任务失败: {task.task_id}")
+                
+                if self.event_bus:
+                    await self.event_bus.emit("task:failed", {
+                        "task_id": task.task_id,
+                        "handler_name": task.handler_name,
+                        "error": str(e),
+                    }, source="executor")
             
             finally:
                 task.finished_at = time.time()
@@ -242,6 +292,14 @@ class BackgroundTaskHandler(TaskHandler):
         if self._current_task:
             self._current_task.progress = message
             logger.info(f"[task] {self._current_task.task_id} 进度: {message}")
+            
+            # 触发进度事件（通过 executor 的 event_bus）
+            if self.executor and self.executor.event_bus:
+                asyncio.create_task(self.executor.event_bus.emit("task:progress", {
+                    "task_id": self._current_task.task_id,
+                    "handler_name": self._current_task.handler_name,
+                    "progress": message,
+                }, source="task"))
     
     def get_progress(self) -> str:
         """获取当前任务进度"""

@@ -198,6 +198,13 @@ class WebhookServer:
         
         logger.info(f"[webhook] 收到推送 → {to_user}: {message_text[:50]}...")
         
+        # 触发 Webhook 接收事件（通过外部注入的 event_bus）
+        if hasattr(self, '_event_bus') and self._event_bus:
+            await self._event_bus.emit("webhook:received", {
+                "to_user": to_user,
+                "text_preview": message_text[:100],
+            }, source="webhook")
+        
         return web.json_response({
             "success": True,
             "message": "已加入推送队列",

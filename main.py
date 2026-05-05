@@ -14,6 +14,7 @@ from src.tasks.help_task import HelpTaskHandler
 from src.tasks.long_task import LongRunningTaskHandler, DataSyncTaskHandler
 from src.tasks.baidu_search_task import BaiduSearchTaskHandler
 from src.webhook import WebhookServer
+from src.ui.bus import EventBus, get_default_bus
 
 logging.basicConfig(
     level=logging.INFO,
@@ -90,8 +91,11 @@ def main():
     # 初始化 API
     api = WeixinAPI(base_url=creds["baseUrl"], token=creds["token"])
     
-    # 创建后台任务执行器
-    executor = TaskExecutor(max_workers=args.workers)
+    # 创建事件总线（UI 监控基础设施）
+    event_bus = get_default_bus()
+    
+    # 创建后台任务执行器（注入事件总线）
+    executor = TaskExecutor(max_workers=args.workers, event_bus=event_bus)
     
     # 构建任务注册表
     registry = build_registry(executor)
@@ -105,8 +109,12 @@ def main():
             webhook.set_default_user(creds["userId"])
             logger.info(f"[main] 从凭证预加载默认用户: {creds['userId']}")
     
-    # 创建机器人
-    bot = WeixinBot(api, registry=registry, webhook=webhook, executor=executor)
+    # 创建机器人（注入事件总线）
+    bot = WeixinBot(api, registry=registry, webhook=webhook, executor=executor, event_bus=event_bus)
+    
+    # 注册事件监听示例（用于调试）
+    event_bus.on("*", lambda e: logger.debug(f"[bus] {e.event}: {e.data}"))
+    logger.info(f"[main] 事件总线已启动，订阅数: {event_bus.get_subscriber_counts()}")
     
     # 优雅退出
     import signal

@@ -74,3 +74,24 @@ aiohttp.http_exceptions.BadHttpMessage: 400, message:
 2026-05-04 14:33:43,768 - aiohttp.access - INFO - 47.83.223.65 [04/May/2026:14:33:43 +0800] "GET /favicon.ico HTTP/1.1" 404 174 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.122 Safari/537.36"
 2026-05-04 15:13:00,949 - aiohttp.access - INFO - 64.62.197.48 [04/May/2026:15:13:00 +0800] "GET / HTTP/1.1" 200 1264 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0"
 2026-05-04 15:13:39,373 - aiohttp.access - INFO - 64.62.197.51 [04/May/2026:15:13:39 +0800] "GET /favicon.ico HTTP/1.1" 404 174 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Safari/605.1.15"
+2026-05-05 07:33:22,824 - src.auth - INFO - [auth] 使用已保存的凭证 (accountId=d53c10d66481@im.bot)
+2026-05-05 07:33:22,825 - src.tasks.registry - INFO - [registry] 注册任务处理器: help (priority=5)
+2026-05-05 07:33:22,825 - src.tasks.registry - INFO - [registry] 注册任务处理器: status (priority=10)
+2026-05-05 07:33:22,825 - src.tasks.registry - INFO - [registry] 注册任务处理器: long_task (priority=25)
+2026-05-05 07:33:22,825 - src.tasks.registry - INFO - [registry] 注册任务处理器: data_sync (priority=25)
+2026-05-05 07:33:22,825 - src.tasks.registry - INFO - [registry] 注册任务处理器: baidu_search (priority=22)
+2026-05-05 07:33:22,825 - src.tasks.registry - INFO - [registry] 注册任务处理器: search (priority=30)
+2026-05-05 07:33:22,825 - src.tasks.registry - INFO - [registry] 注册任务处理器: ai (priority=100)
+2026-05-05 07:33:22,825 - src.webhook - INFO - [webhook] 默认用户已设置: o9cq808082W1eazbzsTErAU-GQCY@im.wechat
+2026-05-05 07:33:22,825 - __main__ - INFO - [main] 从凭证预加载默认用户: o9cq808082W1eazbzsTErAU-GQCY@im.wechat
+2026-05-05 07:33:22,825 - src.bot - INFO - 🤖 机器人启动，监听消息...
+2026-05-05 07:33:22,825 - src.bot - INFO - 已注册处理器 (7): help, status, baidu_search, long_task, data_sync, search, ai
+2026-05-05 07:33:22,826 - src.webhook - INFO - 🌐 Webhook 服务已启动: http://0.0.0.0:18789
+2026-05-05 07:33:22,826 - src.webhook - INFO -    推送接口: POST http://0.0.0.0:18789/webhook/send
+2026-05-05 07:33:22,826 - src.webhook - INFO -    默认用户: o9cq808082W1eazbzsTErAU-GQCY@im.wechat
+2026-05-05 07:33:22,828 - src.bot - INFO - 📬 任务结果消费者启动
+2026-05-05 07:33:22,828 - src.tasks.background - INFO - [executor] 启动，worker 数量: 3
+2026-05-05 07:33:22,828 - src.bot - INFO - 🌐 Webhook 消费者启动
+2026-05-05 07:33:22,828 - src.tasks.background - INFO - [executor] worker-0 启动
+2026-05-05 07:33:22,828 - src.tasks.background - INFO - [executor] worker-1 启动
+2026-05-05 07:33:22,828 - src.tasks.background - INFO - [executor] worker-2 启动
