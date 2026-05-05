@@ -5,6 +5,7 @@
 主体参考 https://github.com/co-pine/wx-robot-ilink/
 web接口方便外部数据随时推送到微信端，减少bot主体工作量。把wx-bot理解成个壳就好了，想干啥就在外面做，定时也好，一次性也好，结果推给web接口。
 
+<img width="2828" height="1444" alt="image" src="https://github.com/user-attachments/assets/2c24abcf-f4a6-44ac-9dda-7d92987ec2fd" />
 
 
 # 1. 安装依赖
