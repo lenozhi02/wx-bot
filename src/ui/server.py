@@ -14,6 +14,7 @@ try:
     from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
     from fastapi.responses import StreamingResponse, JSONResponse
     from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.staticfiles import StaticFiles
     FASTAPI_AVAILABLE = True
 except ImportError:
     FASTAPI_AVAILABLE = False
@@ -76,6 +77,9 @@ class UIServer:
         
         # 注册路由
         self._register_routes(app)
+        
+        # 静态文件（前端构建产物）—— 必须放在 API 路由之后
+        self._mount_static(app)
         
         return app
     
@@ -272,6 +276,27 @@ class UIServer:
                     "Connection": "keep-alive",
                 },
             )
+    
+    def _mount_static(self, app: "FastAPI"):
+        """挂载前端静态文件"""
+        import os
+        # 尝试多个可能的路径
+        candidates = [
+            "web/dist",
+            os.path.join(os.path.dirname(__file__), "../../web/dist"),
+            os.path.join(os.path.dirname(__file__), "../../../web/dist"),
+        ]
+        static_dir = None
+        for c in candidates:
+            if os.path.isdir(c) and os.path.isfile(os.path.join(c, "index.html")):
+                static_dir = os.path.abspath(c)
+                break
+        
+        if static_dir:
+            app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+            logger.info(f"[ui] 静态文件服务: {static_dir}")
+        else:
+            logger.warning("[ui] 未找到前端构建产物 web/dist，UI 将无法通过浏览器访问")
     
     async def run(self):
         """启动服务"""
