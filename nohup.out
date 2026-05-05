@@ -95,3 +95,9 @@ aiohttp.http_exceptions.BadHttpMessage: 400, message:
 2026-05-05 07:33:22,828 - src.tasks.background - INFO - [executor] worker-0 启动
 2026-05-05 07:33:22,828 - src.tasks.background - INFO - [executor] worker-1 启动
 2026-05-05 07:33:22,828 - src.tasks.background - INFO - [executor] worker-2 启动
+2026-05-05 08:14:49,925 - aiohttp.access - INFO - 101.251.219.7 [05/May/2026:08:14:49 +0800] "UNKNOWN / HTTP/1.0" 400 223 "-" "-"
+2026-05-05 08:14:51,581 - aiohttp.access - INFO - 101.251.219.7 [05/May/2026:08:14:51 +0800] "GET / HTTP/1.1" 200 1264 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-05-05 08:15:18,542 - aiohttp.access - INFO - 101.251.219.7 [05/May/2026:08:15:18 +0800] "GET /v1/models HTTP/1.1" 404 174 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-05-05 08:15:40,742 - aiohttp.access - INFO - 101.251.219.7 [05/May/2026:08:15:40 +0800] "GET /v1/embeddings HTTP/1.1" 404 174 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-05-05 08:16:07,299 - aiohttp.access - INFO - 101.251.219.7 [05/May/2026:08:16:07 +0800] "GET /v1/completions HTTP/1.1" 404 174 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-05-05 08:16:36,311 - aiohttp.access - INFO - 101.251.219.7 [05/May/2026:08:16:36 +0800] "GET /favicon.ico HTTP/1.1" 404 174 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"

@@ -1,6 +1,7 @@
 import sys
 import argparse
 import logging
+import asyncio
 
 from src.auth import AuthManager
 from src.weixin_api import WeixinAPI
@@ -15,6 +16,7 @@ from src.tasks.long_task import LongRunningTaskHandler, DataSyncTaskHandler
 from src.tasks.baidu_search_task import BaiduSearchTaskHandler
 from src.webhook import WebhookServer
 from src.ui.bus import EventBus, get_default_bus
+from src.ui.server import UIServer
 
 logging.basicConfig(
     level=logging.INFO,
@@ -70,6 +72,8 @@ def main():
     parser.add_argument('--webhook-port', type=int, default=8080, help='Webhook 监听端口 (默认: 8080)')
     parser.add_argument('--no-webhook', action='store_true', help='禁用 Webhook 服务')
     parser.add_argument('--workers', type=int, default=3, help='后台任务并发数 (默认: 3)')
+    parser.add_argument('--ui-port', type=int, default=3000, help='Web UI 服务端口 (默认: 3000)')
+    parser.add_argument('--no-ui', action='store_true', help='禁用 Web UI 服务')
     args = parser.parse_args()
     
     auth = AuthManager()
@@ -116,6 +120,23 @@ def main():
     event_bus.on("*", lambda e: logger.debug(f"[bus] {e.event}: {e.data}"))
     logger.info(f"[main] 事件总线已启动，订阅数: {event_bus.get_subscriber_counts()}")
     
+    # 创建 UI 服务（可选）
+    ui_server = None
+    if not args.no_ui:
+        try:
+            ui_server = UIServer(
+                event_bus=event_bus,
+                host="0.0.0.0",
+                port=args.ui_port,
+                bot_instance=bot,
+                executor=executor,
+                webhook=webhook,
+            )
+            logger.info(f"[main] Web UI 服务: http://0.0.0.0:{args.ui_port}")
+            logger.info(f"[main] API 文档: http://0.0.0.0:{args.ui_port}/docs")
+        except ImportError as e:
+            logger.warning(f"[main] UI 服务启动失败: {e}")
+    
     # 优雅退出
     import signal
     def signal_handler(sig, frame):
@@ -126,7 +147,19 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     
-    bot.start()
+    # 同时启动 Bot 和 UI 服务
+    if ui_server:
+        asyncio.run(_run_both(bot, ui_server))
+    else:
+        bot.start()
+
+
+async def _run_both(bot: WeixinBot, ui_server: UIServer):
+    """并发运行 Bot 和 UI 服务"""
+    await asyncio.gather(
+        asyncio.to_thread(bot.start),
+        ui_server.run(),
+    )
 
 
 if __name__ == "__main__":
