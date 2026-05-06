@@ -1,10 +1,22 @@
 // WX-BOT Web UI 类型定义
 
+export interface WorkerState {
+  name: string;
+  status: 'idle' | 'pending' | 'running' | 'success' | 'failed' | 'cancelled';
+  task: {
+    task_id: string;
+    handler_name: string;
+    progress: string;
+    started_at: number;
+  } | null;
+}
+
 export interface BotStatus {
   running: boolean;
   handlers: string[];
   webhook_enabled: boolean;
   executor_workers: number;
+  workers: WorkerState[];
 }
 
 export interface TaskInfo {

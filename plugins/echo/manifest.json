@@ -1,0 +1,10 @@
+{
+  "id": "echo",
+  "name": "回声插件",
+  "version": "1.0.0",
+  "description": "复读用户消息，支持 echo/复读 触发",
+  "author": "bot-admin",
+  "priority": 90,
+  "handler_class": "EchoHandler",
+  "handler_file": "handler.py"
+}

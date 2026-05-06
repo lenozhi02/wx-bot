@@ -1,0 +1,10 @@
+{
+  "id": "reminder",
+  "name": "提醒插件",
+  "version": "1.0.0",
+  "description": "定时提醒示例，支持 remind/提醒 触发",
+  "author": "bot-admin",
+  "priority": 85,
+  "handler_class": "ReminderHandler",
+  "handler_file": "handler.py"
+}

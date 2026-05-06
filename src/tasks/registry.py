@@ -3,7 +3,7 @@
 """
 
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Callable
 
 from src.tasks.base import TaskHandler, TaskResult
 
@@ -69,3 +69,22 @@ class TaskRegistry:
     def list_handlers(self) -> List[str]:
         """返回所有已注册处理器的名称列表（按优先级排序）"""
         return [h.name for h in self._handlers]
+
+    def get_handler_info(self) -> List[Dict[str, Any]]:
+        """返回所有已注册处理器的详细信息（用于插件列表）"""
+        return [
+            {
+                "name": h.name,
+                "priority": h.priority,
+                "description": getattr(h, "description", ""),
+                "type": "background" if "background" in str(type(h).__mro__) else "sync",
+            }
+            for h in self._handlers
+        ]
+
+    def get_handler(self, name: str) -> Optional[TaskHandler]:
+        """按名称获取处理器实例"""
+        for h in self._handlers:
+            if h.name == name:
+                return h
+        return None

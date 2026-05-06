@@ -17,6 +17,8 @@ from src.tasks.baidu_search_task import BaiduSearchTaskHandler
 from src.webhook import WebhookServer
 from src.ui.bus import EventBus, get_default_bus
 from src.ui.server import UIServer
+from src.plugins.loader import PluginLoader
+from src.plugins.manager import PluginManager
 
 logging.basicConfig(
     level=logging.INFO,
@@ -103,6 +105,14 @@ def main():
     
     # 构建任务注册表
     registry = build_registry(executor)
+    
+    # 初始化插件系统
+    plugin_loader = PluginLoader(executor=executor)
+    plugin_manager = PluginManager(registry=registry, loader=plugin_loader, event_bus=event_bus)
+    # 启动时自动加载所有插件
+    plugin_results = plugin_manager.reload_all()
+    loaded_count = sum(1 for v in plugin_results.values() if v)
+    logger.info(f"[main] 插件系统初始化完成，已加载 {loaded_count}/{len(plugin_results)} 个插件")
     
     # 创建 Webhook 服务（可选）
     webhook = None

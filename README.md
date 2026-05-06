@@ -5,7 +5,7 @@
 主体参考 https://github.com/co-pine/wx-robot-ilink/
 web接口方便外部数据随时推送到微信端，减少bot主体工作量。把wx-bot理解成个壳就好了，想干啥就在外面做，定时也好，一次性也好，结果推给web接口。
 
-<img width="2828" height="1444" alt="image" src="https://github.com/user-attachments/assets/2c24abcf-f4a6-44ac-9dda-7d92987ec2fd" />
+<img width="2828" height="1444" alt="image" src="https://github.com/user-attachments/assets/2c24abcf-f4a6-44ac-9dda-7d9297ec2fd" />
 
 
 # 1. 安装依赖
@@ -59,7 +59,41 @@ python main.py --no-webhook
   4 web hook
   增加到web调用接口，推到内部后，异步给消息循环发到微信。
 
-<img width="1308" height="998" alt="image" src="https://github.com/user-attachments/assets/2f75c40b-8bd6-4d35-8b3b-4a4b8a9b45d4" />
+<img width="1308" height="998" alt="image" src="https://github.com/user-attachments/assets/2f75c58b-8bd6-4d35-8b3b-4a4b8a9b45d4" />
 
+
+# 5. 动态插件系统
+
+WX-BOT 支持运行时热加载插件，无需重启服务即可新增、卸载、重载插件。
+
+## 5.1 快速添加插件
+
+在 `plugins/` 目录下创建插件目录（含 `manifest.json` + `handler.py`），打开 Web UI → **插件中心** → 点击 **"重载全部"** 即可生效。
+
+```bash
+plugins/my_plugin/
+├── manifest.json      # 插件元数据
+└── handler.py         # 处理器实现
+```
+
+## 5.2 插件类型
+
+- **同步插件**（继承 `TaskHandler`）：即时响应，如文本回复
+- **后台插件**（继承 `BackgroundTaskHandler`）：异步执行，支持进度上报，完成后自动推送结果到微信
+
+## 5.3 管理 API
+
+| API | 说明 |
+|------|------|
+| `GET /api/plugins` | 列出已加载插件 |
+| `POST /api/plugins/reload` | 重载全部插件 |
+| `POST /api/plugins/{id}/load` | 加载指定插件 |
+| `POST /api/plugins/{id}/unload` | 卸载指定插件 |
+| `POST /api/plugins/{id}/reload` | 重载单个插件 |
+
+详细文档：
+- [插件系统设计](docs/PLUGIN_SYSTEM_DESIGN.md)
+- [插件开发指南](docs/PLUGIN_DEVELOPER_GUIDE.md)
+- [插件目录说明](plugins/README.md)
 
       

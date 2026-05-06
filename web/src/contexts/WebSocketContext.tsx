@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { api } from '../services/api';
 import type { BusEventData } from '../types';
 
 export type BotActivity =
@@ -22,6 +23,17 @@ export interface FinishingTask extends ActiveTask {
   resultStatus: 'completed' | 'failed' | 'cancelled';
 }
 
+export interface WorkerState {
+  name: string;
+  status: 'idle' | 'pending' | 'running' | 'success' | 'failed' | 'cancelled';
+  task: {
+    taskId: string;
+    handlerName: string;
+    progress: string;
+    startedAt: number;
+  } | null;
+}
+
 interface WSContextValue {
   connected: boolean;
   events: BusEventData[];
@@ -32,6 +44,7 @@ interface WSContextValue {
   activeTasks: ActiveTask[];
   finishingTasks: FinishingTask[];
   taskCount: number;
+  workers: WorkerState[];
   connect: () => void;
   disconnect: () => void;
 }
@@ -56,104 +69,174 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const [activeTasks, setActiveTasks] = useState<ActiveTask[]>([]);
   const [finishingTasks, setFinishingTasks] = useState<FinishingTask[]>([]);
   const [currentTask, setCurrentTask] = useState<ActiveTask | null>(null);
+  const [workers, setWorkers] = useState<WorkerState[]>([]);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const prevConnected = useRef<boolean | undefined>(undefined);
+
+  // === 关键修复：用 ref 避免 React 批量更新导致的闭包陷阱 ===
+  const processedCount = useRef(0);
+  const activeTasksRef = useRef<ActiveTask[]>([]);
+  const finishingTasksRef = useRef<FinishingTask[]>([]);
+  const workersRef = useRef<WorkerState[]>([]);
+
+  // 同步 ref 与 state（确保 ref 始终最新）
+  activeTasksRef.current = activeTasks;
+  finishingTasksRef.current = finishingTasks;
+  workersRef.current = workers;
 
   // 定时清理已完成的任务（收尾中 → 彻底移除）
   useEffect(() => {
     const timer = setInterval(() => {
-      setFinishingTasks((prev) =>
-        prev.filter((t) => Date.now() - t.finishAt < FINISHING_DISPLAY_MS)
-      );
+      setFinishingTasks((prev) => {
+        const remaining = prev.filter((t) => Date.now() - t.finishAt < FINISHING_DISPLAY_MS);
+        finishingTasksRef.current = remaining;
+        return remaining;
+      });
     }, 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // 监听事件，更新任务状态
+  // 监听事件，逐个处理所有未处理的新事件
   useEffect(() => {
-    const latest = ws.events[ws.events.length - 1];
-    if (!latest) return;
+    const allEvents = ws.events;
+    const startIdx = processedCount.current;
+    if (startIdx >= allEvents.length) return;
 
-    const handler = String(latest.data.handler_name || latest.data.handler || '');
-    const taskId = String(latest.data.task_id || '');
+    const newEvents = allEvents.slice(startIdx);
+    processedCount.current = allEvents.length;
 
-    // 任务开始
-    if (latest.event === 'task:started' || latest.event === 'task:submitted') {
-      const newTask: ActiveTask = {
-        taskId: taskId || `task-${Date.now()}`,
-        handlerName: handler || 'UnknownTask',
-        startedAt: Date.now(),
-      };
-      setActiveTasks((prev) => {
-        const filtered = prev.filter((t) => t.taskId !== newTask.taskId);
-        return [...filtered, newTask];
-      });
-      setCurrentTask(newTask);
-      setActivity(inferActivity(newTask.handlerName));
-      if (idleTimer.current) clearTimeout(idleTimer.current);
-    }
+    let nextActivity: BotActivity | null = null;
+    let nextCurrentTask: ActiveTask | null = currentTask;
+    let needsUpdate = false;
 
-    // 任务完成/失败/取消 → 移到"收尾中"列表，5秒后消失
-    if (
-      latest.event === 'task:completed' ||
-      latest.event === 'task:failed' ||
-      latest.event === 'task:cancelled'
-    ) {
-      const resultStatus = latest.event === 'task:completed'
-        ? 'completed'
-        : latest.event === 'task:failed'
-        ? 'failed'
-        : 'cancelled';
+    for (const event of newEvents) {
+      const handler = String(event.data.handler_name || event.data.handler || '');
+      const taskId = String(event.data.task_id || '');
 
-      setActiveTasks((prev) => {
-        const task = prev.find((t) => t.taskId === taskId);
-        const remaining = prev.filter((t) => t.taskId !== taskId);
+      // ── 任务开始 ──
+      if (event.event === 'task:started' || event.event === 'task:submitted') {
+        const newTask: ActiveTask = {
+          taskId: taskId || `task-${Date.now()}`,
+          handlerName: handler || 'UnknownTask',
+          startedAt: Date.now(),
+        };
+        activeTasksRef.current = activeTasksRef.current.filter((t) => t.taskId !== newTask.taskId);
+        activeTasksRef.current = [...activeTasksRef.current, newTask];
+        nextCurrentTask = newTask;
+        nextActivity = inferActivity(newTask.handlerName);
+        if (idleTimer.current) clearTimeout(idleTimer.current);
+        needsUpdate = true;
+
+        // 更新对应 worker 的任务
+        const workerName = String(event.data.worker || '');
+        if (workerName) {
+          const existingIdx = workersRef.current.findIndex((w) => w.name === workerName);
+          const newWorker: WorkerState = {
+            name: workerName,
+            status: 'running',
+            task: {
+              taskId: newTask.taskId,
+              handlerName: newTask.handlerName,
+              progress: '',
+              startedAt: newTask.startedAt,
+            },
+          };
+          if (existingIdx >= 0) {
+            workersRef.current = workersRef.current.map((w, i) => (i === existingIdx ? newWorker : w));
+          } else {
+            workersRef.current = [...workersRef.current, newWorker];
+          }
+        }
+      }
+
+      // ── 任务完成/失败/取消 ──
+      if (
+        event.event === 'task:completed' ||
+        event.event === 'task:failed' ||
+        event.event === 'task:cancelled'
+      ) {
+        const resultStatus =
+          event.event === 'task:completed'
+            ? 'completed'
+            : event.event === 'task:failed'
+            ? 'failed'
+            : 'cancelled';
+
+        const task = activeTasksRef.current.find((t) => t.taskId === taskId);
+        activeTasksRef.current = activeTasksRef.current.filter((t) => t.taskId !== taskId);
 
         // 将完成的任务加入"收尾中"列表
         if (task) {
-          setFinishingTasks((ft) => [
-            ...ft.filter((t) => t.taskId !== taskId),
+          finishingTasksRef.current = [
+            ...finishingTasksRef.current.filter((t) => t.taskId !== taskId),
             { ...task, finishAt: Date.now(), resultStatus },
-          ]);
+          ];
         }
 
-        // 更新当前任务为最新的活跃任务
-        if (remaining.length > 0) {
-          setCurrentTask(remaining[remaining.length - 1]);
-          setActivity(inferActivity(remaining[remaining.length - 1].handlerName));
+        // 更新当前任务
+        if (activeTasksRef.current.length > 0) {
+          nextCurrentTask = activeTasksRef.current[activeTasksRef.current.length - 1];
+          nextActivity = inferActivity(nextCurrentTask.handlerName);
         } else if (task) {
-          // 没有活跃任务了，但还有收尾中任务，显示收尾状态
-          setCurrentTask({
+          nextCurrentTask = {
             taskId: task.taskId,
             handlerName: task.handlerName,
             startedAt: task.startedAt,
-          });
-          setActivity('working'); // 收尾中也算working
+          };
+          nextActivity = 'working';
         } else {
-          setCurrentTask(null);
-          setActivity('idle');
+          nextCurrentTask = null;
+          nextActivity = 'idle';
         }
+        needsUpdate = true;
 
-        return remaining;
-      });
-    }
+        // 清除对应 worker 的任务（保留 worker 条目，状态设为 idle）
+        workersRef.current = workersRef.current.map((w) =>
+          w.task?.taskId === taskId
+            ? { ...w, status: resultStatus === 'completed' ? 'success' : 'failed', task: null }
+            : w
+        );
+      }
 
-    // 消息收到
-    if (latest.event === 'bot:message_received') {
-      if (activeTasks.length === 0 && finishingTasks.length === 0) {
-        setActivity('working');
-        if (idleTimer.current) clearTimeout(idleTimer.current);
-        idleTimer.current = setTimeout(() => setActivity('idle'), IDLE_TIMEOUT);
+      // ── 进度更新 ──
+      if (event.event === 'task:progress') {
+        const progressTaskId = String(event.data.task_id || '');
+        workersRef.current = workersRef.current.map((w) =>
+          w.task?.taskId === progressTaskId
+            ? { ...w, task: { ...w.task, progress: String(event.data.progress || '') } }
+            : w
+        );
+        needsUpdate = true;
+      }
+
+      // ── 消息收到 ──
+      if (event.event === 'bot:message_received') {
+        if (activeTasksRef.current.length === 0 && finishingTasksRef.current.length === 0) {
+          nextActivity = 'working';
+          if (idleTimer.current) clearTimeout(idleTimer.current);
+          idleTimer.current = setTimeout(() => setActivity('idle'), IDLE_TIMEOUT);
+          needsUpdate = true;
+        }
+      }
+
+      // ── 消息发送 ──
+      if (event.event === 'bot:message_sent') {
+        if (activeTasksRef.current.length === 0 && finishingTasksRef.current.length === 0) {
+          nextActivity = 'idle';
+          needsUpdate = true;
+        }
       }
     }
 
-    // 消息发送
-    if (latest.event === 'bot:message_sent') {
-      if (activeTasks.length === 0 && finishingTasks.length === 0) {
-        setActivity('idle');
-      }
+    // 批量更新 state（只更新一次）
+    if (needsUpdate) {
+      setActiveTasks([...activeTasksRef.current]);
+      setFinishingTasks([...finishingTasksRef.current]);
+      setWorkers([...workersRef.current]);
+      if (nextCurrentTask !== undefined) setCurrentTask(nextCurrentTask);
+      if (nextActivity !== null) setActivity(nextActivity);
     }
-  }, [ws.events, activeTasks.length, finishingTasks.length]);
+  }, [ws.events, currentTask]);
 
   // 连接断开检测
   useEffect(() => {
@@ -166,11 +249,43 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     prevConnected.current = isConnected;
   }, [ws.connected]);
 
+  // 初始化 worker 状态（从 API 获取，弥补 WebSocket 连接前的事件丢失）
+  useEffect(() => {
+    if (!ws.connected) return;
+    const initWorkers = async () => {
+      try {
+        const status = await api.botStatus();
+        if (status.workers && status.workers.length > 0) {
+          const mapped = status.workers.map((w) => ({
+            name: w.name,
+            status: w.status,
+            task: w.task
+              ? {
+                  taskId: w.task.task_id,
+                  handlerName: w.task.handler_name,
+                  progress: w.task.progress,
+                  startedAt: w.task.started_at,
+                }
+              : null,
+          }));
+          setWorkers(mapped);
+          workersRef.current = mapped;
+        }
+      } catch (e) {
+        // 静默失败，不影响 UI
+      }
+    };
+    initWorkers();
+    // 每 10 秒同步一次，确保状态不漂移
+    const interval = setInterval(initWorkers, 10000);
+    return () => clearInterval(interval);
+  }, [ws.connected]);
+
   const taskCount = activeTasks.length + finishingTasks.length;
 
   return (
     <WebSocketContext.Provider
-      value={{ ...ws, activity, currentTask, activeTasks, finishingTasks, taskCount }}
+      value={{ ...ws, activity, currentTask, activeTasks, finishingTasks, taskCount, workers }}
     >
       {children}
     </WebSocketContext.Provider>

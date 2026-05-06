@@ -1,5 +1,5 @@
 import { useWS } from '../../contexts/WebSocketContext';
-import type { BotActivity, ActiveTask, FinishingTask } from '../../contexts/WebSocketContext';
+import type { BotActivity, ActiveTask, FinishingTask, WorkerState } from '../../contexts/WebSocketContext';
 import { PixelCharacter } from './PixelCharacter';
 import { MiniNPC } from './MiniNPC';
 
@@ -9,9 +9,10 @@ interface Props {
   activeTasks: ActiveTask[];
   finishingTasks: FinishingTask[];
   taskCount: number;
+  workers: WorkerState[];
 }
 
-export function PixelRoom({ activity, currentTask, activeTasks, finishingTasks, taskCount }: Props) {
+export function PixelRoom({ activity, currentTask, activeTasks, finishingTasks, taskCount, workers }: Props) {
   const { connected } = useWS();
 
   // 真正的活跃任务数（不含收尾中）
@@ -209,6 +210,9 @@ export function PixelRoom({ activity, currentTask, activeTasks, finishingTasks, 
       {/* 小猫 */}
       <PixelFurniture emoji="🐱" x="18%" y="75%" size="1.8rem" z={60} />
 
+      {/* Worker 工位栏 */}
+      <WorkerStations workers={workers} />
+
       {/* 小助手 NPC */}
       <MiniNPC activeTasks={activeTasks} finishingTasks={finishingTasks} />
 
@@ -241,6 +245,124 @@ export function PixelRoom({ activity, currentTask, activeTasks, finishingTasks, 
         <span className="text-[10px] text-[#e2e8f0] font-bold">{activityLabel(activity, hasFinishing)}</span>
       </div>
     </div>
+  );
+}
+
+function WorkerStations({ workers }: { workers: WorkerState[] }) {
+  if (workers.length === 0) return null;
+
+  // 均匀分布在底部
+  const slotWidth = Math.min(18, 90 / workers.length);
+  const startX = (100 - slotWidth * workers.length) / 2;
+
+  return (
+    <>
+      {/* 工位区底板 */}
+      <div
+        className="absolute"
+        style={{
+          left: `${startX - 2}%`,
+          bottom: '12%',
+          width: `${slotWidth * workers.length + 4}%`,
+          height: '22%',
+          background: '#1a1a2e',
+          border: '3px solid #3d3028',
+          opacity: 0.85,
+          zIndex: 25,
+        }}
+      />
+      {/* Worker 工位标签 */}
+      <div
+        className="absolute"
+        style={{
+          left: `${startX - 2}%`,
+          bottom: '35%',
+          zIndex: 26,
+          background: '#3d3028',
+          padding: '1px 6px',
+        }}
+      >
+        <span className="text-[8px] font-bold text-[#ffd700]">WORKERS</span>
+      </div>
+      {workers.map((worker, i) => {
+        const x = startX + i * slotWidth + slotWidth / 2;
+        const isIdle = worker.status === 'idle';
+        const isRunning = worker.status === 'running';
+        const isSuccess = worker.status === 'success';
+
+        const statusColor = isIdle
+          ? '#64748b'
+          : isRunning
+          ? '#3b82f6'
+          : isSuccess
+          ? '#22c55e'
+          : '#e94560';
+
+        const emoji = isIdle ? '😴' : isRunning ? '💻' : isSuccess ? '✅' : '❌';
+        const taskName = worker.task
+          ? worker.task.handlerName.replace(/TaskHandler|Handler/g, '')
+          : '空闲';
+
+        return (
+          <div
+            key={worker.name}
+            className="absolute"
+            style={{
+              left: `${x}%`,
+              bottom: '14%',
+              transform: 'translateX(-50%)',
+              zIndex: 30 + i,
+            }}
+          >
+            {/* 任务名气泡 */}
+            <div
+              className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap"
+              style={{
+                background: '#0e1119',
+                border: `2px solid ${statusColor}`,
+                padding: '1px 5px',
+                color: statusColor,
+                fontSize: '8px',
+                fontWeight: 'bold',
+              }}
+            >
+              {worker.name.replace('worker-', 'W')}: {taskName}
+              {worker.task?.progress && (
+                <span className="ml-1 opacity-70">{worker.task.progress}</span>
+              )}
+              <div
+                className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rotate-45"
+                style={{
+                  background: '#0e1119',
+                  borderRight: `2px solid ${statusColor}`,
+                  borderBottom: `2px solid ${statusColor}`,
+                }}
+              />
+            </div>
+            {/* Worker 表情 */}
+            <div
+              className="text-xl"
+              style={{
+                filter: `drop-shadow(2px 2px 0 ${statusColor}40)`,
+                animation: isRunning ? `bounceMini ${1 + i * 0.2}s ease-in-out infinite` : undefined,
+              }}
+            >
+              {emoji}
+            </div>
+            {/* 状态灯 */}
+            <div className="flex justify-center mt-0.5">
+              <div
+                className="w-1.5 h-1.5 rounded-full"
+                style={{
+                  background: statusColor,
+                  animation: isRunning ? `pixelPulse 0.8s steps(2) infinite` : undefined,
+                }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </>
   );
 }
 

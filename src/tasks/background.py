@@ -87,6 +87,7 @@ class TaskExecutor:
         self._result_callback: Optional[Callable[[BackgroundTask], Coroutine]] = None
         self.event_bus = event_bus
         self.running = False
+        self._worker_tasks: Dict[str, Optional[str]] = {}  # worker_name -> task_id
     
     def set_result_callback(self, callback: Callable[[BackgroundTask], Coroutine]):
         """设置任务完成后的回调函数（由 Bot 设置，用于推送结果）"""
@@ -121,18 +122,20 @@ class TaskExecutor:
     async def _worker_loop(self, name: str):
         """Worker 协程：从队列取任务并执行"""
         logger.info(f"[executor] {name} 启动")
-        
+        self._worker_tasks[name] = None
+
         while self.running:
             try:
                 task, coro = await asyncio.wait_for(self.task_queue.get(), timeout=1.0)
             except asyncio.TimeoutError:
                 continue
-            
+
+            self._worker_tasks[name] = task.task_id
             task.status = TaskStatus.RUNNING
             task.started_at = time.time()
-            
+
             logger.info(f"[executor] {name} 开始执行任务: {task.task_id}")
-            
+
             # 触发任务开始事件
             if self.event_bus:
                 await self.event_bus.emit("task:started", {
@@ -183,7 +186,8 @@ class TaskExecutor:
             
             finally:
                 task.finished_at = time.time()
-                
+                self._worker_tasks[name] = None
+
                 # 放入结果队列，触发回调
                 await self.result_queue.put(task)
                 if self._result_callback:
@@ -195,14 +199,39 @@ class TaskExecutor:
     def stop(self):
         self.running = False
         logger.info("[executor] 已停止")
-    
+
     def get_task(self, task_id: str) -> Optional[BackgroundTask]:
         """获取任务状态"""
         return self.tasks.get(task_id)
-    
+
     def list_tasks(self) -> list:
         """列出所有任务"""
         return list(self.tasks.values())
+
+    def get_worker_states(self) -> list:
+        """返回每个 worker 的当前状态"""
+        result = []
+        for name in sorted(self._worker_tasks.keys(), key=lambda x: int(x.split('-')[-1])):
+            task_id = self._worker_tasks[name]
+            if task_id and task_id in self.tasks:
+                task = self.tasks[task_id]
+                result.append({
+                    "name": name,
+                    "status": task.status.value,
+                    "task": {
+                        "task_id": task.task_id,
+                        "handler_name": task.handler_name,
+                        "progress": task.progress,
+                        "started_at": task.started_at,
+                    }
+                })
+            else:
+                result.append({
+                    "name": name,
+                    "status": "idle",
+                    "task": None,
+                })
+        return result
 
 
 class BackgroundTaskHandler(TaskHandler):
@@ -287,12 +316,27 @@ class BackgroundTaskHandler(TaskHandler):
         """
         pass
     
-    def report_progress(self, message: str):
-        """上报任务进度（子类在 run() 中调用）"""
+    def report_progress(self, progress_or_message, message: str = None):
+        """上报任务进度（子类在 run() 中调用）
+
+        支持两种调用方式:
+            report_progress("解析中...")
+            report_progress(50, "解析中...")
+        """
+        if message is not None:
+            # 双参数: (progress, message)
+            progress = progress_or_message
+            msg = message
+        else:
+            # 单参数: (message)
+            progress = None
+            msg = progress_or_message
+
         if self._current_task:
-            self._current_task.progress = message
-            logger.info(f"[task] {self._current_task.task_id} 进度: {message}")
-            
+            display = f"{progress}% {msg}" if progress is not None else msg
+            self._current_task.progress = display
+            logger.info(f"[task] {self._current_task.task_id} 进度: {display}")
+
             # 触发进度事件（通过 executor 的 event_bus）
             if self.executor and self.executor.event_bus:
                 asyncio.create_task(self.executor.event_bus.emit("task:progress", {

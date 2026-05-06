@@ -5,7 +5,7 @@ import { MetricsPanel } from '../components/MetricsPanel';
 import { BotStatusCard } from '../components/BotStatusCard';
 
 export function Dashboard() {
-  const { connected, events, activity, currentTask, activeTasks, finishingTasks, taskCount } = useWS();
+  const { connected, events, activity, currentTask, activeTasks, finishingTasks, taskCount, workers } = useWS();
 
   // 底部显示的任务状态文字
   const statusText = (() => {
@@ -33,6 +33,7 @@ export function Dashboard() {
           activeTasks={activeTasks}
           finishingTasks={finishingTasks}
           taskCount={taskCount}
+          workers={workers}
         />
       </div>
 

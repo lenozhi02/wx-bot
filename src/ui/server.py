@@ -40,6 +40,7 @@ class UIServer:
         bot_instance=None,
         executor=None,
         webhook=None,
+        plugin_manager=None,
     ):
         if not FASTAPI_AVAILABLE:
             raise ImportError("UIServer 需要 FastAPI，请安装: pip install fastapi uvicorn")
@@ -50,6 +51,7 @@ class UIServer:
         self.bot = bot_instance
         self.executor = executor
         self.webhook = webhook
+        self.plugin_manager = plugin_manager
         
         # 创建组件
         self.hub = WebSocketHub(event_bus)
@@ -104,12 +106,17 @@ class UIServer:
         async def bot_status():
             if not self.bot:
                 return {"status": "unknown", "message": "Bot 实例未绑定"}
-            
+
+            workers = []
+            if self.bot.executor:
+                workers = self.bot.executor.get_worker_states()
+
             return {
                 "running": self.bot.running,
                 "handlers": self.bot.registry.list_handlers() if self.bot.registry else [],
                 "webhook_enabled": self.bot.webhook is not None,
                 "executor_workers": self.bot.executor.max_workers if self.bot.executor else 0,
+                "workers": workers,
             }
         
         @app.get("/api/bot/handlers")
@@ -119,6 +126,26 @@ class UIServer:
             
             handlers = self.bot.registry.list_handlers()
             return {"handlers": handlers, "count": len(handlers)}
+        
+        # ========== 状态映射（内部 → 前端） ==========
+        def _map_status(internal: str) -> str:
+            """把后端内部状态值映射为前端友好的状态值"""
+            return {
+                "success": "completed",
+                "pending": "pending",
+                "running": "running",
+                "failed": "failed",
+                "cancelled": "failed",
+            }.get(internal, internal)
+        
+        def _unmap_status(frontend: str) -> str:
+            """前端筛选值 → 后端内部状态值"""
+            return {
+                "completed": "success",
+                "pending": "pending",
+                "running": "running",
+                "failed": "failed",
+            }.get(frontend, frontend)
         
         # ========== 任务管理 ==========
         @app.get("/api/tasks")
@@ -131,9 +158,10 @@ class UIServer:
             
             tasks = self.executor.list_tasks()
             
-            # 按状态过滤
+            # 按状态过滤（前端值 → 后端值）
             if status:
-                tasks = [t for t in tasks if t.status.value == status]
+                internal_status = _unmap_status(status)
+                tasks = [t for t in tasks if t.status.value == internal_status]
             
             # 按时间倒序，限制条数
             tasks = sorted(tasks, key=lambda t: t.created_at, reverse=True)[:limit]
@@ -144,7 +172,7 @@ class UIServer:
                         "task_id": t.task_id,
                         "handler_name": t.handler_name,
                         "user_id": t.user_id,
-                        "status": t.status.value,
+                        "status": _map_status(t.status.value),
                         "progress": t.progress,
                         "created_at": t.created_at,
                         "started_at": t.started_at,
@@ -249,6 +277,67 @@ class UIServer:
                 "queue_size": self.webhook.queue.qsize(),
             }
         
+        # ========== 插件管理 ==========
+        @app.get("/api/plugins")
+        async def list_plugins():
+            if not self.plugin_manager:
+                return {"plugins": [], "count": 0}
+            return {"plugins": self.plugin_manager.list_plugins(), "count": len(self.plugin_manager.list_plugins())}
+
+        @app.get("/api/plugins/{plugin_id}")
+        async def get_plugin(plugin_id: str):
+            if not self.plugin_manager:
+                return JSONResponse({"error": "PluginManager 未初始化"}, status_code=500)
+            info = self.plugin_manager.get_plugin(plugin_id)
+            if not info:
+                return JSONResponse({"error": "插件不存在"}, status_code=404)
+            return info
+
+        @app.post("/api/plugins/reload")
+        async def reload_plugins():
+            if not self.plugin_manager:
+                return JSONResponse({"error": "PluginManager 未初始化"}, status_code=500)
+            results = self.plugin_manager.reload_all()
+            return {"reloaded": results, "count": len(results)}
+
+        @app.post("/api/plugins/{plugin_id}/load")
+        async def load_plugin(plugin_id: str):
+            if not self.plugin_manager:
+                return JSONResponse({"error": "PluginManager 未初始化"}, status_code=500)
+            ok = self.plugin_manager.load(plugin_id)
+            if ok:
+                return {"status": "ok", "plugin_id": plugin_id, "action": "load"}
+            return JSONResponse({"error": "加载失败"}, status_code=400)
+
+        @app.post("/api/plugins/{plugin_id}/unload")
+        async def unload_plugin(plugin_id: str):
+            if not self.plugin_manager:
+                return JSONResponse({"error": "PluginManager 未初始化"}, status_code=500)
+            ok = self.plugin_manager.unload(plugin_id)
+            if ok:
+                return {"status": "ok", "plugin_id": plugin_id, "action": "unload"}
+            return JSONResponse({"error": "卸载失败"}, status_code=400)
+
+        @app.post("/api/plugins/{plugin_id}/reload")
+        async def reload_single_plugin(plugin_id: str):
+            if not self.plugin_manager:
+                return JSONResponse({"error": "PluginManager 未初始化"}, status_code=500)
+            ok = self.plugin_manager.reload(plugin_id)
+            if ok:
+                return {"status": "ok", "plugin_id": plugin_id, "action": "reload"}
+            return JSONResponse({"error": "重载失败"}, status_code=400)
+
+        @app.get("/api/plugins/handlers/all")
+        async def list_all_handlers():
+            registry = None
+            if self.plugin_manager:
+                registry = self.plugin_manager.registry
+            elif self.bot and self.bot.registry:
+                registry = self.bot.registry
+            if not registry:
+                return {"handlers": [], "count": 0}
+            return {"handlers": registry.get_handler_info(), "count": len(registry.get_handler_info())}
+
         # ========== WebSocket ==========
         @app.websocket("/ws")
         async def websocket_endpoint(websocket: WebSocket):
